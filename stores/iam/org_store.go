@@ -93,6 +93,16 @@ func (store *OrgStore) Create(org *Org) error {
 	return nil
 }
 
+func (store *OrgStore) CountAll() (int64, error) {
+	var count int64
+	res := store.db.Model(&OrgTable{}).Count(&count)
+	if res.Error != nil {
+		return 0, res.Error
+	}
+
+	return count, nil
+}
+
 func (store *OrgStore) UpdateName(uid string, name string) error {
 
 	id, err := uuid.Parse(uid)
@@ -100,7 +110,19 @@ func (store *OrgStore) UpdateName(uid string, name string) error {
 		return fmt.Errorf("id must be a valid UUID")
 	}
 
-	res := store.db.Model(&OrgTable{}).Where("uid = ?", id).Update("name", name)
+	n := strings.TrimSpace(name)
+	n = strings.ToLower(n)
+
+	values := map[string]interface{}{
+		"name": n,
+	}
+
+	if n != name {
+		values["name_formatted"] = name
+	}
+
+	res := store.db.Model(&OrgTable{}).Where("uid = ?", id).Updates(values)
+
 	if res.Error != nil {
 		return res.Error
 	}
@@ -251,10 +273,10 @@ func (store *OrgStore) PagePairs(page int, size int) ([]OrgPair, error) {
 	return orgs, nil
 }
 
-func (store *OrgStore) All(expand bool) ([]Org, error) {
+func (store *OrgStore) All(expand ...string) ([]Org, error) {
 	tables := []OrgTable{}
 
-	if expand {
+	if len(expand) > 0 && slices.Contains(expand, "domains") {
 		res := store.db.Joins("Domain").Find(&tables)
 		if res.Error != nil {
 			return nil, res.Error
@@ -318,6 +340,95 @@ func (store *OrgStore) FindByUid(id string, expand ...string) (*Org, error) {
 
 	} else {
 		res := store.db.First(&table, "uid = ?", id)
+		if res.Error != nil {
+			return nil, res.Error
+		}
+
+		if res.RowsAffected == 0 {
+			return nil, errors.New("org not found")
+		}
+	}
+
+	org := table.ToOrg()
+
+	return &org, nil
+}
+
+func (store *OrgStore) FindById(id int32, expand ...string) (*Org, error) {
+
+	table := OrgTable{}
+	if len(expand) > 0 && slices.Contains(expand, "domains") {
+		res := store.db.Model(&OrgTable{}).Preload("Domains").First(&table, "id = ?", id)
+		if res.Error != nil {
+			return nil, res.Error
+		}
+
+		if res.RowsAffected == 0 {
+			return nil, errors.New("org not found")
+		}
+
+	} else {
+		res := store.db.First(&table, "id = ?", id)
+		if res.Error != nil {
+			return nil, res.Error
+		}
+
+		if res.RowsAffected == 0 {
+			return nil, errors.New("org not found")
+		}
+	}
+
+	org := table.ToOrg()
+
+	return &org, nil
+}
+
+func (store *OrgStore) FindBySlug(slug string, expand ...string) (*Org, error) {
+
+	table := OrgTable{}
+	if len(expand) > 0 && slices.Contains(expand, "domains") {
+		res := store.db.Model(&OrgTable{}).Preload("Domains").First(&table, "slug = ?", slug)
+		if res.Error != nil {
+			return nil, res.Error
+		}
+
+		if res.RowsAffected == 0 {
+			return nil, errors.New("org not found")
+		}
+
+	} else {
+		res := store.db.First(&table, "slug = ?", slug)
+		if res.Error != nil {
+			return nil, res.Error
+		}
+
+		if res.RowsAffected == 0 {
+			return nil, errors.New("org not found")
+		}
+	}
+
+	org := table.ToOrg()
+
+	return &org, nil
+}
+
+func (store *OrgStore) FindByName(name string, expand ...string) (*Org, error) {
+
+	name = strings.TrimSpace(name)
+	name = strings.ToLower(name)
+	table := OrgTable{}
+	if len(expand) > 0 && slices.Contains(expand, "domains") {
+		res := store.db.Model(&OrgTable{}).Preload("Domains").First(&table, "name = ?", name)
+		if res.Error != nil {
+			return nil, res.Error
+		}
+
+		if res.RowsAffected == 0 {
+			return nil, errors.New("org not found")
+		}
+
+	} else {
+		res := store.db.First(&table, "name = ?", name)
 		if res.Error != nil {
 			return nil, res.Error
 		}

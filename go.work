@@ -4,5 +4,6 @@ use (
 	./apps/frank
 	./apps/gs
 	./apps/gsagent
+	./crypto
 	./stores/iam
 )

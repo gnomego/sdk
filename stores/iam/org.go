@@ -113,11 +113,8 @@ func (org *OrgTable) ToOrg() Org {
 
 	n := org.Name
 	if org.NameFormatted.Valid {
-		println("name formatted", org.NameFormatted.String)
 		n = org.NameFormatted.String
 	}
-
-	println("to org", org.Name, n)
 
 	return Org{
 		Id:      org.Uid.String(),
