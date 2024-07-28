@@ -1,0 +1,4 @@
+
+db:
+  driver: sqlite
+  connection: 'sqlite:db/sample.db'
