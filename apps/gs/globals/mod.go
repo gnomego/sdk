@@ -17,7 +17,10 @@ func InitDb(d *gorm.DB, migrate bool) {
 			models.OrgTable{},
 			models.OrgDomainTable{})
 	}
+}
 
+func InitValidator(v *validation.GsValidator) {
+	validiator = v
 }
 
 func GetDb() *gorm.DB {

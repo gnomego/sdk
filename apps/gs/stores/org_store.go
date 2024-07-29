@@ -3,8 +3,9 @@ package stores
 import (
 	"github.com/gnomego/apps/gs/einfo"
 	"github.com/gnomego/apps/gs/globals"
-	"github.com/gnomego/apps/gs/log"
 	"github.com/gnomego/apps/gs/models"
+	"github.com/gnomego/apps/gs/xgin"
+	"github.com/google/uuid"
 )
 
 type OrgStore struct {
@@ -12,9 +13,9 @@ type OrgStore struct {
 }
 
 type NewOrg struct {
-	Name    string   `json:"name" validate:"required,max=64"`
-	Slug    *string  `json:"slug" validate:"max=64"`
-	Domains []string `json:"domains" validate:"dive,domain,max=256"`
+	Name    string    `json:"name" validate:"required,max=64"`
+	Slug    *string   `json:"slug" validate:"max=64"`
+	Domains *[]string `json:"domains" validate:"dive,domain,max=256"`
 }
 
 type Org struct {
@@ -26,6 +27,16 @@ type Org struct {
 	Domains []string `json:"domains,omitempty"`
 }
 
+func (o *Org) Validate() *einfo.ErrorInfo {
+	v := globals.GetValidator()
+	err := v.Struct(o)
+	if err == nil {
+		return nil
+	}
+
+	return v.TranslateStructWithName(o, "Org", err)
+}
+
 func (o *NewOrg) Validate() *einfo.ErrorInfo {
 	v := globals.GetValidator()
 	err := v.Struct(o)
@@ -33,7 +44,7 @@ func (o *NewOrg) Validate() *einfo.ErrorInfo {
 		return nil
 	}
 
-	return v.TranslateStruct(o, err)
+	return v.TranslateStructWithName(o, "NewOrg", err)
 }
 
 func NewOrgStore() *OrgStore {
@@ -44,66 +55,152 @@ func NewOrgStore() *OrgStore {
 	}
 }
 
-func (s *OrgStore) Create(org *NewOrg) *Response[*Org] {
-	response := &Response[*Org]{
+// All godoc
+// @Summary gets all orgs
+// @Schemes
+// @Description gets all orgs
+// @Tags orgs
+// @Accept json
+// @Produce json
+// @Success 200 {object} xgin.Response[[]Org] ok
+// @Failure 500 {object} xgin.Response[[]Org] error
+// @Router / [get]
+func (s *OrgStore) All() *xgin.Response[*[]Org] {
+	response := &xgin.Response[*[]Org]{
 		Ok: true,
+	}
+
+	tables, err := s.repo.All()
+	if err != nil {
+		return response.SetError(err, "error getting all orgs")
+	}
+
+	orgs := []Org{}
+	for _, table := range tables {
+		status := mapToStatus(table.Status)
+		org := &Org{
+			Id:     table.Uid.String(),
+			Name:   table.Name,
+			Slug:   table.Slug,
+			Status: &status,
+			IsRoot: table.IsRoot,
+		}
+
+		orgs = append(orgs, *org)
+	}
+
+	response.Value = &orgs
+
+	return response
+}
+
+func (s *OrgStore) Create(org *NewOrg) *xgin.Response[*Org] {
+	response := &xgin.Response[*Org]{
+		Value: nil,
+		Ok:    true,
 	}
 
 	e := org.Validate()
 	if e != nil {
-		response.Ok = false
-		response.Error = e
-		return response
+		return response.Invalid(e)
 	}
 
-	table, err := s.repo.FindByName(org.Name)
-
+	exists, err := s.repo.ExistsByName(org.Name)
 	if err != nil {
-		log.Error(err, "error finding org by name %s", org.Name)
-		response.Ok = false
-		response.Error = einfo.Sprintf("failed to find org by name: %v", org.Name)
-		return response
+		return response.SetError(err, "ExistsByName failed: %v", org.Name)
 	}
 
-	if table != nil {
-		response.Ok = false
-		response.Error = einfo.Sprintf("org with name %s already exists", org.Name)
-		return response
+	if exists {
+		return response.SetErrorMessage("org_exists", "org with name already exists")
 	}
 
-	table = &models.OrgTable{}
+	table := &models.OrgTable{}
 	if org.Slug != nil {
 		table.SetSlug(*org.Slug)
 	}
 
 	table.SetName(org.Name)
 
-	for _, domain := range org.Domains {
-		table.Domains = append(table.Domains, models.OrgDomainTable{
-			Domain: domain,
-		})
+	if org.Domains != nil {
+		for _, domain := range *org.Domains {
+			table.Domains = append(table.Domains, models.OrgDomainTable{
+				Domain: domain,
+			})
+		}
 	}
 
 	err = s.repo.Create(table)
 	if err != nil {
-		log.Error(err, "error creating org %v", org.Name)
-		response.Ok = false
-		response.Error = einfo.Sprintf("failed to create org: %v", org.Name)
-		return response
+		return response.SetError(err, "error creating org %s", org.Name)
 	}
 
-	status := mapToStatus(table.Status)
+	response.Value = mapOrg(table)
 
-	response.Value = &Org{
+	return response
+}
+
+func (s *OrgStore) Save(org *Org) *xgin.Response[*Org] {
+	response := &xgin.Response[*Org]{
+		Value: nil,
+		Ok:    true,
+	}
+
+	e := org.Validate()
+	if e != nil {
+		return response.Invalid(e)
+	}
+
+	uid, err := uuid.Parse(org.Id)
+	if err != nil {
+		return response.SetError(err, "invalid org id")
+	}
+
+	table, err := s.repo.FindByUid(uid, "domains")
+	if err != nil {
+		return response.SetError(err, "error finding org %s", org.Id)
+	}
+
+	name := table.Name
+	if table.NameFormatted.Valid {
+		name = table.NameFormatted.String
+	}
+	if org.Name != name {
+		table.SetName(org.Name)
+	}
+
+	if org.Slug != table.Slug {
+		table.SetSlug(org.Slug)
+	}
+
+	if (org.Status != nil) && (*org.Status != mapToStatus(table.Status)) {
+		table.Status = mapFromStatus(*org.Status)
+	}
+
+	err = s.repo.Update(table)
+	if err != nil {
+		return response.SetError(err, "error updating org %s", org.Id)
+	}
+
+	response.Value = mapOrg(table)
+	return response
+}
+
+func mapOrg(table *models.OrgTable) *Org {
+	status := mapToStatus(table.Status)
+	name := table.Name
+	if table.NameFormatted.Valid {
+		name = table.NameFormatted.String
+	}
+	org := &Org{
 		Id:      table.Uid.String(),
-		Name:    table.Name,
+		Name:    name,
 		Slug:    table.Slug,
 		Status:  &status,
 		IsRoot:  table.IsRoot,
 		Domains: table.GetDomains(),
 	}
 
-	return response
+	return org
 }
 
 func mapToStatus(s int16) string {
@@ -116,5 +213,18 @@ func mapToStatus(s int16) string {
 		return "deleted"
 	default:
 		return "active"
+	}
+}
+
+func mapFromStatus(s string) int16 {
+	switch s {
+	case "active":
+		return 1
+	case "inactive":
+		return 2
+	case "deleted":
+		return 4
+	default:
+		return 1
 	}
 }

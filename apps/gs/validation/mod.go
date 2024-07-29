@@ -30,6 +30,8 @@ func NewGsValidator() *GsValidator {
 		once:     sync.Once{},
 	}
 
+	v.RegisterGsValidation()
+
 	return v
 }
 

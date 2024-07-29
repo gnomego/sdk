@@ -119,6 +119,14 @@ func (o *OrgRepo) DeleteByUid(uid uuid.UUID) error {
 	return o.db.Delete(OrgTable{}, "uid = ?", uid).Error
 }
 
+func (o *OrgRepo) ExistsByName(name string) (bool, error) {
+	var count int64
+	name = strings.TrimSpace(name)
+	name = strings.ToLower(name)
+	err := o.db.Model(OrgTable{}).Where("name = ?", name).Count(&count).Error
+	return count > 0, err
+}
+
 func (os *OrgRepo) FindByUid(uid uuid.UUID, expand ...string) (*OrgTable, error) {
 	org := &OrgTable{}
 
@@ -208,7 +216,7 @@ func (os *OrgRepo) Delete(org *OrgTable) error {
 
 func (os *OrgRepo) All() ([]OrgTable, error) {
 	orgs := []OrgTable{}
-	err := os.db.Find(&orgs).Error
+	err := os.db.Where("status <> ?", STATUS_DELETED).Find(&orgs).Error
 	return orgs, err
 }
 
