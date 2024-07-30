@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"sync"
 
-	"github.com/gnomego/apps/gs/einfo"
+	"github.com/gnomego/apps/gs/xgin"
 	"github.com/go-playground/locales/en"
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
@@ -43,7 +43,7 @@ func (v *GsValidator) RegisterGsValidation() *GsValidator {
 	return v
 }
 
-func (v *GsValidator) TranslateStruct(obj interface{}, err error) *einfo.ErrorInfo {
+func (v *GsValidator) TranslateStruct(obj interface{}, err error) *xgin.ErrorInfo {
 	if kindOfData(obj) != reflect.Struct {
 		return nil
 	}
@@ -52,7 +52,7 @@ func (v *GsValidator) TranslateStruct(obj interface{}, err error) *einfo.ErrorIn
 	return v.TranslateStructWithName(obj, structName, err)
 }
 
-func (v *GsValidator) TranslateStructWithName(obj interface{}, target string, err error) *einfo.ErrorInfo {
+func (v *GsValidator) TranslateStructWithName(obj interface{}, target string, err error) *xgin.ErrorInfo {
 	if err == nil {
 		return nil
 	}
@@ -61,17 +61,17 @@ func (v *GsValidator) TranslateStructWithName(obj interface{}, target string, er
 		return nil
 	}
 
-	root := einfo.NewErrorInfo("validation", "One or more validation errors occurred")
+	root := xgin.NewErrorInfo("validation", "One or more validation errors occurred")
 	root.SetTarget(target)
 
 	translator, _ := v.uni.FindTranslator("en")
 	errs := err.(validator.ValidationErrors)
-	details := make([]einfo.ErrorInfo, 0)
+	details := make([]xgin.ErrorInfo, 0)
 	for _, e := range errs {
 		message := e.Translate(translator)
 		field := e.Field()
 
-		next := einfo.NewErrorInfo(e.Tag(), message).SetTarget(field)
+		next := xgin.NewErrorInfo(e.Tag(), message).SetTarget(field)
 		details = append(details, *next)
 	}
 

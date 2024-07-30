@@ -1,7 +1,6 @@
 package stores
 
 import (
-	"github.com/gnomego/apps/gs/einfo"
 	"github.com/gnomego/apps/gs/globals"
 	"github.com/gnomego/apps/gs/models"
 	"github.com/gnomego/apps/gs/xgin"
@@ -27,7 +26,7 @@ type Org struct {
 	Domains []string `json:"domains,omitempty"`
 }
 
-func (o *Org) Validate() *einfo.ErrorInfo {
+func (o *Org) Validate() *xgin.ErrorInfo {
 	v := globals.GetValidator()
 	err := v.Struct(o)
 	if err == nil {
@@ -37,7 +36,7 @@ func (o *Org) Validate() *einfo.ErrorInfo {
 	return v.TranslateStructWithName(o, "Org", err)
 }
 
-func (o *NewOrg) Validate() *einfo.ErrorInfo {
+func (o *NewOrg) Validate() *xgin.ErrorInfo {
 	v := globals.GetValidator()
 	err := v.Struct(o)
 	if err == nil {
@@ -55,16 +54,6 @@ func NewOrgStore() *OrgStore {
 	}
 }
 
-// All godoc
-// @Summary gets all orgs
-// @Schemes
-// @Description gets all orgs
-// @Tags orgs
-// @Accept json
-// @Produce json
-// @Success 200 {object} xgin.Response[[]Org] ok
-// @Failure 500 {object} xgin.Response[[]Org] error
-// @Router / [get]
 func (s *OrgStore) All() *xgin.Response[*[]Org] {
 	response := &xgin.Response[*[]Org]{
 		Ok: true,

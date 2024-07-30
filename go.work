@@ -5,5 +5,10 @@ use (
 	./apps/gs
 	./apps/gsagent
 	./crypto
+	./errors
+	./ginx
+	./monad
 	./stores/iam
+	./validation
+	./xgorm
 )
